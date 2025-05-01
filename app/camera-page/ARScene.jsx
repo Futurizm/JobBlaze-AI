@@ -3,11 +3,12 @@
 import React, { useEffect } from 'react';
 import { Scene, Entity } from 'aframe-react';
 import 'aframe'; // Import A-Frame core
+import dynamic from 'next/dynamic';
 
 const ARScene = () => {
   // Load AR.js script dynamically (use local copy in production)
   useEffect(() => {
-    const arjsScript = document.createElement('script');
+    const arjsScript = documentu.createElement('script');
     // For local copy (preferred):
     arjsScript.src = '/scripts/aframe-ar.js';
     // For CDN (development only):
@@ -16,7 +17,9 @@ const ARScene = () => {
     document.body.appendChild(arjsScript);
 
     return () => {
-      document.body.removeChild(arjsScript); // Cleanup on unmount
+      if (arjsScript.parentNode) {
+        arjsScript.parentNode.removeChild(arjsScript); // Cleanup on unmount
+      }
     };
   }, []);
 
@@ -47,4 +50,4 @@ const ARScene = () => {
   );
 };
 
-export default ARScene;
+export default dynamic(() => Promise.resolve(ARScene), { ssr: false });
