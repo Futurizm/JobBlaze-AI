@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Briefcase, DollarSign, X, Check, Camera, Compass } from "lucide-react";
 import jobsData from "@/public/vacancies/jobs.json";
+import Link from "next/link";
 
 // Define job type
 interface Job {
@@ -366,13 +367,16 @@ export default function ARJobSearch() {
                 <option value="Shymkent">Шымкент</option>
               </select>
             </div>
-            <Button
-              onClick={startAR}
-              className="w-full bg-blue-500 text-white hover:bg-blue-600 rounded-lg shadow-md"
+            <a
+              href="/index.html"
+              target="_blank"
+              className="flex w-full bg-blue-500 text-white hover:bg-blue-600 rounded-lg shadow-md p-5"
             >
-              <Camera className="mr-2 h-4 w-4" />
-              Начать AR Поиск
-            </Button>
+              <div className="flex items-center justify-center">
+                <Camera className="mr-2 h-4 w-4" />
+                Начать AR Поиск
+              </div>
+            </a>
             {cameraError && <p className="text-red-500 text-sm mt-2">{cameraError}</p>}
           </CardContent>
         </Card>
