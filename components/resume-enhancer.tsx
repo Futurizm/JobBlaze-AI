@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FileUp, Download, ArrowRight, Check } from "lucide-react"
 import { useXP } from "./xp-provider"
-import { DEEPSEEK_API_KEY } from "@/constants/constants"
+import { DEEPSEEK_API_KEY, DOCRAPTOR_KEY } from "@/constants/constants"
 
 export default function ResumeEnhancer() {
   const [file, setFile] = useState(null)
@@ -670,7 +670,7 @@ export default function ResumeEnhancer() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_credentials: "bW0tzZwcU7kcV9URCvFf",
+          user_credentials: DOCRAPTOR_KEY,
           doc: {
             document_content: htmlContent,
             type: "pdf",

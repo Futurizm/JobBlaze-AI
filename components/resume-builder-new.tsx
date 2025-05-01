@@ -10,6 +10,7 @@ import { Plus, Trash, Download, ArrowRight, Check, AlertCircle, Send } from "luc
 import { useXP } from "./xp-provider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { DOCRAPTOR_KEY } from "@/constants/constants"
 
 const GOOGLE_API_KEY = "AIzaSyCLIB1yGy-lyyXbyWr5mebsmC46GCHx6Dk"
 
@@ -89,7 +90,7 @@ export function ResumeBuilderNew() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   // DocRaptor API key management
-  const [apiKey, setApiKey] = useState("0aC8KzAQ2NnNEwiiBQ8A")
+  const [apiKey, setApiKey] = useState(DOCRAPTOR_KEY)
   const [hasKey, setHasKey] = useState(false)
   const [isKeyLoading, setIsKeyLoading] = useState(false)
   const [keyError, setKeyError] = useState("")
