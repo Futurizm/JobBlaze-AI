@@ -84,14 +84,6 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/portfolio-generator")} className="hover:bg-primary/5">
-              <Link href="/portfolio-generator">
-                <PenTool className="h-5 w-5" />
-                <span>Portfolio Generator</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           {/* New AR Job Search menu item */}
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/ar-job-search")} className="hover:bg-primary/5">
