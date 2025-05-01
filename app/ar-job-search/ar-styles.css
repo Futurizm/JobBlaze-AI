@@ -1,0 +1,65 @@
+/* AR-specific styles */
+.a-enter-vr {
+    display: none !important; /* Hide VR button */
+  }
+  
+  .a-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1 !important;
+  }
+  
+  .a-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 999999 !important;
+  }
+  
+  /* Job marker styles */
+  .job-entity {
+    cursor: pointer;
+  }
+  
+  .apply-button {
+    cursor: pointer;
+  }
+  
+  /* Make sure AR scene takes full height */
+  .ar-scene-container {
+    height: 80vh;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    background-color: #000;
+    border-radius: 0.5rem;
+  }
+  
+  /* AR controls */
+  .ar-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+  }
+  
+  /* Loading indicator */
+  .ar-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    z-index: 5;
+  }
+  

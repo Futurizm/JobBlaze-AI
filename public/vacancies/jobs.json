@@ -1,0 +1,37 @@
+{
+    "jobs": [
+      {
+        "id": 1,
+        "title": "Frontend Developer",
+        "company": "TechCorp",
+        "location": "Almaty, KZ",
+        "salary": "60,000 KZT",
+        "lat": 52.297673259724135, 
+        "lon": 76.93609052323697,
+        "type": "Full-time",
+        "tags": ["React", "TypeScript", "Tailwind CSS"]
+      },
+      {
+        "id": 2,
+        "title": "UX/UI Designer",
+        "company": "DesignHub",
+        "location": "Almaty, KZ",
+        "salary": "55,000 KZT",
+        "lat": 52.298355731781555,
+        "lon": 76.93442709415822,
+        "type": "Full-time",
+        "tags": ["Figma", "Adobe XD", "Prototyping"]
+      },
+      {
+        "id": 3,
+        "title": "Backend Developer",
+        "company": "DataSys",
+        "location": "Almaty, KZ",
+        "salary": "70,000 KZT",
+        "lat": 43.2388,
+        "lon": 76.8895,
+        "type": "Full-time",
+        "tags": ["Node.js", "MongoDB", "Express"]
+      }
+    ]
+  }

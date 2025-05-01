@@ -1,0 +1,505 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 246 84% 59%; /* Changed to match CiVeX blue */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 245 80% 67%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 245 75% 74%;
+    --accent-light: 245 100% 82%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 246 84% 59%;
+    --radius: 0.5rem;
+
+    --sidebar-background: 246 84% 59%; /* Changed to match CiVeX blue */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 246 84% 59%;
+    --sidebar-accent: 245 80% 67%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 245 75% 74%;
+    --sidebar-ring: 0 0% 100%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 15%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 15%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%; /* Changed to a more pleasant blue */
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 213 94% 68%;
+    --accent-light: 213 94% 78%;
+    --accent-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+
+    --sidebar-background: 222 47% 15%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217 91% 60%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 213 94% 68%;
+    --sidebar-ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.font-exo {
+  font-family: var(--font-exo2), system-ui, sans-serif;
+}
+
+.text-gradient {
+  @apply text-primary;
+}
+
+/* Simplified styles without glowing effects */
+.simple-border {
+  @apply border border-primary/50;
+}
+
+.simple-card {
+  @apply relative overflow-hidden rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300;
+}
+
+.simple-button {
+  @apply relative overflow-hidden rounded-md bg-primary text-white font-medium transition-all duration-300 shadow-sm hover:shadow-md;
+}
+
+.simple-input {
+  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300;
+}
+
+.simple-progress {
+  @apply h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden;
+}
+
+.simple-progress-bar {
+  @apply h-full bg-primary rounded-full transition-all duration-500;
+}
+
+.simple-badge {
+  @apply relative overflow-hidden rounded-full px-3 py-1 text-xs font-medium bg-primary/10 text-primary;
+}
+
+/* Container styles */
+.main-container {
+  @apply w-full px-6 py-8;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.content-grid {
+  @apply grid grid-cols-1 lg:grid-cols-12 gap-6 w-full;
+}
+
+.content-main {
+  @apply lg:col-span-8 w-full;
+}
+
+.content-sidebar {
+  @apply lg:col-span-4 w-full;
+}
+
+.full-width {
+  @apply w-full max-w-full;
+}
+
+/* Tabs styles */
+.tabs-container {
+  @apply w-full;
+}
+
+.tabs-list {
+  @apply flex space-x-1 rounded-md bg-muted p-1 mb-4;
+}
+
+.tab-trigger {
+  @apply flex-1 px-3 py-1.5 text-sm font-medium rounded-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow;
+}
+
+.tab-content {
+  @apply mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+}
+
+/* Cyberpunk/Neon styles for special components */
+.cyberpunk-card {
+  @apply relative overflow-hidden rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md transition-all duration-300;
+}
+
+.neon-border {
+  @apply border border-accent shadow-sm;
+}
+
+.neon-button {
+  @apply relative overflow-hidden rounded-md bg-primary text-white font-medium transition-all duration-300 hover:bg-primary/90;
+}
+
+.neon-input {
+  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300;
+}
+
+.neon-progress {
+  @apply h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden;
+}
+
+.neon-progress-bar {
+  @apply h-full bg-accent rounded-full transition-all duration-500;
+}
+
+.holographic-badge {
+  @apply relative overflow-hidden rounded-full px-3 py-1 text-xs font-medium bg-accent/10 text-accent border border-accent/30;
+}
+
+.neon-text {
+  @apply text-accent;
+}
+
+.neon-orb {
+  @apply rounded-full bg-primary flex items-center justify-center shadow-md;
+}
+
+.holographic-panel {
+  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md;
+}
+
+.holographic-terminal {
+  @apply bg-gray-900 text-green-400 font-mono p-4 rounded-md border border-gray-700 shadow-inner;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-gpu {
+  transform: translateZ(0);
+}
+
+/* Animations */
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+.wave-animation {
+  animation: wave 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes wave {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+}
+
+/* Grid animation for cyberpunk effect */
+.cyberpunk-grid-animated {
+  background-size: 50px 50px;
+  background-image: linear-gradient(to right, rgba(30, 64, 175, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 64, 175, 0.1) 1px, transparent 1px);
+  animation: grid-move 20s linear infinite;
+}
+
+@keyframes grid-move {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 50px 50px;
+  }
+}
+
+/* Improve layout containers */
+.content-container {
+  @apply w-full px-6;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Improve sidebar styling */
+.sidebar-content {
+  @apply p-4 h-full;
+}
+
+/* Improve form elements */
+.form-container {
+  @apply space-y-6 w-full;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Improve spacing and layout */
+.section-container {
+  @apply mb-8;
+}
+
+.card-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+}
+
+/* Improve typography */
+h1.page-title {
+  @apply text-3xl font-bold mb-6 text-primary;
+}
+
+h2.section-title {
+  @apply text-2xl font-bold mb-4 text-primary;
+}
+
+/* Improve navbar */
+.main-navbar {
+  @apply sticky top-0 z-50 bg-gradient-to-r from-primary to-primary/90 text-white shadow-md w-full;
+}
+
+/* Improve sidebar */
+.main-sidebar {
+  @apply bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800;
+}
+
+/* Fix right margin issues */
+.full-width-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 24px !important;
+  box-sizing: border-box;
+}
+
+/* Remove any max-width constraints */
+.container,
+.mx-auto {
+  max-width: 100% !important;
+}
+
+/* Add this new class to fix the layout */
+.page-container {
+  width: 100%;
+  max-width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+/* Improve job listings display */
+.job-listings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.job-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.job-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.job-card-content {
+  flex: 1;
+}
+
+.job-card-footer {
+  margin-top: auto;
+}
+
+/* Improve search bar */
+.search-bar-container {
+  background: linear-gradient(to right, rgba(79, 70, 229, 0.05), rgba(129, 140, 248, 0.1));
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+/* Improve hero section */
+.hero-section {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(129, 140, 248, 0.15) 100%);
+  border-radius: 16px;
+  padding: 40px 20px;
+  margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.hero-section::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(circle at 20% 30%, rgba(79, 70, 229, 0.15) 0%, transparent 20%),
+    radial-gradient(circle at 80% 70%, rgba(129, 140, 248, 0.1) 0%, transparent 20%);
+  z-index: 0;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Fix for all pages to use full width */
+.page-wrapper {
+  width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+/* Fix for two-column layouts */
+.two-column-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .two-column-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fix for specific pages */
+.resume-page,
+.interview-page,
+.voice-page,
+.social-page,
+.work-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 24px;
+}
+
+/* Ensure all pages use full width */
+.page-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Fix for specific components that might have width constraints */
+main,
+section,
+.container,
+.content-container,
+.page-content {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Ensure proper padding on mobile */
+@media (max-width: 640px) {
+  .page-container {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+}
+
+/* Ensure proper content width with sidebar */
+.content-with-sidebar {
+  width: calc(100% - 250px) !important;
+  margin-left: 250px !important;
+}
+
+@media (max-width: 1024px) {
+  .content-with-sidebar {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+}
+
+/* Full width container styles */
+.page-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 768px) {
+  .page-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.full-width-container {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Override any container classes that might be limiting width */
+.container {
+  max-width: 100% !important;
+  width: 100% !important;
+}
