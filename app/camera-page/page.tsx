@@ -1,13 +1,13 @@
 
-import ARScene from "./ARScene";
+// import ARScene from "./ARScene";
 
-const ARScenePage = () => {
+// const ARScenePage = () => {
 
-  return (
-    <div>
-      <ARScene />
-    </div>
-  );
-};
+//   return (
+//     <div>
+//       <ARScene />
+//     </div>
+//   );
+// };
 
-export default ARScenePage;
+// export default ARScenePage;
