@@ -24,6 +24,8 @@ import {
   Laptop,
   Camera,
   Map,
+  LaptopMinimalIcon,
+  FileUser,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -98,6 +100,22 @@ export function AppSidebar() {
               <Link href="/map">
                 <Map className="h-5 w-5" />
                 <span>Map</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/ar-job-search")} className="hover:bg-primary/5">
+              <Link href="/career-page">
+                <LaptopMinimalIcon className="h-5 w-5" />
+                <span>Career</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/ar-job-search")} className="hover:bg-primary/5">
+              <Link href="/resume-rating">
+                <FileUser className="h-5 w-5" />
+                <span>Resume Rating</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

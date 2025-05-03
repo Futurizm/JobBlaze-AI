@@ -25,6 +25,7 @@ import {
   Loader2,
   Clipboard,
   Download,
+  BarChart2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -58,7 +59,7 @@ interface JobListingsGridProps {
   roleText: string;
   experience: string;
   workFormat: string;
-  searchLogic: "AND" | "OR"; // Добавляем searchLogic
+  searchLogic: "AND" | "OR";
 }
 
 export default function JobListingsGrid({
@@ -66,6 +67,7 @@ export default function JobListingsGrid({
   role,
   roleText,
   experience,
+  workFormat,
   searchLogic,
 }: JobListingsGridProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -74,6 +76,7 @@ export default function JobListingsGrid({
   const [error, setError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [savedJobs, setSavedJobs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [currentPage, setCurrentPage] = useState(0);
@@ -83,6 +86,12 @@ export default function JobListingsGrid({
   const [coverLetter, setCoverLetter] = useState<string | null>(null);
   const [coverLetterLoading, setCoverLetterLoading] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<{
+    advantages: string[];
+    disadvantages: string[];
+  } | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("savedJobs");
@@ -123,7 +132,7 @@ export default function JobListingsGrid({
         ...(skills && { skills: skills }),
         ...(role && { role: role }),
         ...(roleText && { roleText: roleText }),
-        searchLogic, // Передаём searchLogic
+        searchLogic,
       }).toString();
 
       const userAgent =
@@ -325,9 +334,7 @@ export default function JobListingsGrid({
 
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${
-          GOOGLE_API_KEY || "AIzaSyCLIB1yGy-lyyXbyWr5mebsmC46GCHx6Dk"
-        }`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
         {
           method: "POST",
           headers: {
@@ -387,8 +394,6 @@ export default function JobListingsGrid({
       }
 
       const data = await response.json();
-      console.log("Raw Gemini cover letter response:", data);
-
       if (
         !data.candidates ||
         !Array.isArray(data.candidates) ||
@@ -398,14 +403,116 @@ export default function JobListingsGrid({
       }
 
       const content = data.candidates[0].content.parts[0].text.trim();
-      console.log("Generated cover letter:", content);
-
       setCoverLetter(content);
     } catch (err: any) {
       console.error("Error generating cover letter:", err);
-      setCoverLetterError("Failed to generate cover letter. Please try again.");
+      setCoverLetterError(
+        "Не удалось сгенерировать сопроводительное письмо. Попробуйте снова."
+      );
     } finally {
       setCoverLetterLoading(false);
+    }
+  };
+
+  const generateJobAnalysis = async (job: Job) => {
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysis(null);
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Analyze the following job vacancy and provide a list of advantages and disadvantages. The analysis should be concise, professional, and based on the provided job details. Return the response in JSON format with two arrays: "advantages" and "disadvantages", each containing 3-5 bullet points in Russian. Avoid any phrases suggesting AI generation.
+
+                    **Job Details**:
+                    - Title: ${job.title}
+                    - Company: ${job.company}
+                    - Location: ${job.location}
+                    - Salary: ${job.salary}
+                    - Description: ${job.description}
+                    - Tags: ${job.tags.join(", ")}
+                    - Type: ${job.type}
+                    - Experience: ${job.experience}
+                    - Remote: ${job.remote ? "Yes" : "No"}
+
+                    **Instructions**:
+                    - Consider factors like salary, remote work, company reputation, job responsibilities, experience requirements, and work type.
+                    - Make reasonable assumptions if details are missing, but stay grounded in the provided information.
+                    - Each bullet point should be a complete sentence.
+                    - Return only the JSON object, without additional explanations or markdown.
+
+                    Example:
+                    {
+                      "advantages": [
+                        "Высокая заработная плата соответствует рыночным стандартам.",
+                        "Возможность удаленной работы обеспечивает гибкость.",
+                        "Работа в известной компании повышает карьерные перспективы."
+                      ],
+                      "disadvantages": [
+                        "Высокие требования к опыту могут быть сложными для новичков.",
+                        "Ограниченные возможности карьерного роста в данной роли.",
+                        "Рабочий график может быть нестабильным."
+                      ]
+                    }
+
+                    **Now, generate the analysis for the job details provided above in Russian.**`,
+                  },
+                ],
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (
+        !data.candidates ||
+        !Array.isArray(data.candidates) ||
+        data.candidates.length === 0
+      ) {
+        throw new Error("No valid candidates in Gemini response");
+      }
+
+      const rawText = data.candidates[0].content.parts[0].text.trim();
+
+      // Strip Markdown code block syntax (e.g., ```json ... ```)
+      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/);
+      if (!jsonMatch || !jsonMatch[1]) {
+        throw new Error("Failed to extract JSON from Gemini response");
+      }
+
+      const jsonString = jsonMatch[1].trim();
+      const content = JSON.parse(jsonString);
+
+      // Validate the parsed content structure
+      if (!content.advantages || !content.disadvantages) {
+        throw new Error(
+          "Invalid JSON structure: missing advantages or disadvantages"
+        );
+      }
+
+      setAnalysis(content);
+    } catch (err: any) {
+      console.error("Error generating job analysis:", err);
+      setAnalysisError(
+        "Не удалось сгенерировать анализ вакансии. Попробуйте снова."
+      );
+    } finally {
+      setAnalysisLoading(false);
     }
   };
 
@@ -415,6 +522,14 @@ export default function JobListingsGrid({
     setCoverLetter(null);
     setCoverLetterError(null);
     generateCoverLetter(job);
+  };
+
+  const handleAnalyzeJob = (job: Job) => {
+    setSelectedJob(job);
+    setShowAnalysisModal(true);
+    setAnalysis(null);
+    setAnalysisError(null);
+    generateJobAnalysis(job);
   };
 
   const toggleSaveJob = (jobId: string) => {
@@ -498,9 +613,9 @@ export default function JobListingsGrid({
             <>
               <TabsContent value="all" className="mt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredJobs.map((job) => (
+                  {filteredJobs.map((job, index) => (
                     <JobCard
-                      key={job.id}
+                      key={job.id + index}
                       job={job}
                       isSaved={savedJobs.includes(job.id)}
                       onSave={() => toggleSaveJob(job.id)}
@@ -508,6 +623,7 @@ export default function JobListingsGrid({
                         handleGenerateCoverLetter(job)
                       }
                       onApply={() => handleApplyNow(job)}
+                      onAnalyze={() => handleAnalyzeJob(job)}
                     />
                   ))}
                 </div>
@@ -547,6 +663,7 @@ export default function JobListingsGrid({
                         handleGenerateCoverLetter(job)
                       }
                       onApply={() => handleApplyNow(job)}
+                      onAnalyze={() => handleAnalyzeJob(job)}
                     />
                   ))}
                 </div>
@@ -686,13 +803,74 @@ export default function JobListingsGrid({
               </div>
             ) : (
               <p className="mb-4">
-                Generating a personalized cover letter for {selectedJob.title} at{" "}
-                {selectedJob.company}...
+                Generating a personalized cover letter for {selectedJob.title}{" "}
+                at {selectedJob.company}...
               </p>
             )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowModal(false)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAnalysisModal && selectedJob && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">
+              Анализ вакансии: {selectedJob.title}
+            </h2>
+            {analysisLoading ? (
+              <div className="text-center py-4">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                <p className="mt-2">Анализируем вакансию...</p>
+              </div>
+            ) : analysisError ? (
+              <div className="text-center py-4">
+                <p className="text-red-500 mb-4">{analysisError}</p>
+                <Button onClick={() => generateJobAnalysis(selectedJob)}>
+                  Повторить
+                </Button>
+              </div>
+            ) : analysis ? (
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold mb-2">Преимущества:</h3>
+                <ul className="list-disc pl-5 mb-4">
+                  {analysis.advantages.map((advantage, index) => (
+                    <li
+                      key={index}
+                      className="text-sm text-gray-800 dark:text-gray-200"
+                    >
+                      {advantage}
+                    </li>
+                  ))}
+                </ul>
+                <h3 className="text-lg font-semibold mb-2">Недостатки:</h3>
+                <ul className="list-disc pl-5">
+                  {analysis.disadvantages.map((disadvantage, index) => (
+                    <li
+                      key={index}
+                      className="text-sm text-gray-800 dark:text-gray-200"
+                    >
+                      {disadvantage}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="mb-4">
+                Анализируем вакансию {selectedJob.title} в компании{" "}
+                {selectedJob.company}...
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAnalysisModal(false)}
+              >
+                Закрыть
               </Button>
             </div>
           </div>
@@ -708,6 +886,7 @@ interface JobCardProps {
   onSave: () => void;
   onGenerateCoverLetter: () => void;
   onApply: () => void;
+  onAnalyze: () => void;
 }
 
 function JobCard({
@@ -716,6 +895,7 @@ function JobCard({
   onSave,
   onGenerateCoverLetter,
   onApply,
+  onAnalyze,
 }: JobCardProps) {
   return (
     <Card className="job-card border-2 hover:border-primary/30 transition-all duration-300">
@@ -775,11 +955,11 @@ function JobCard({
         </p>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 pt-2 job-card-footer">
-        <div className="flex justify-between w-full">
+        <div className="flex justify-between w-full gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="hover:bg-primary/10"
+            className="hover:bg-primary/10 flex-1"
             onClick={onSave}
           >
             {isSaved ? (
@@ -796,7 +976,15 @@ function JobCard({
           </Button>
           <Button
             size="sm"
-            className="bg-primary hover:bg-primary/90"
+            className="bg-green-600 hover:bg-green-700 flex-1"
+            onClick={onAnalyze}
+          >
+            <BarChart2 className="h-4 w-4 mr-1" />
+            Анализ
+          </Button>
+          <Button
+            size="sm"
+            className="bg-primary hover:bg-primary/90 flex-1"
             onClick={onGenerateCoverLetter}
           >
             <FileText className="h-4 w-4 mr-1" />
