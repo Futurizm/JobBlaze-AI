@@ -1,160 +1,184 @@
-import PDFParser from 'pdf2json';
-import { GOOGLE_API_KEY } from '@/constants/constants';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import fs from "fs/promises";
+import path from "path";
+import PDFParser from "pdf2json";
 
-export async function POST(request: NextRequest) {
+export const runtime = "nodejs";
+
+export async function POST(req: Request) {
   try {
-    console.log('Received POST request to /api/analyze-resume');
+    const formData = await req.formData();
+    const file = formData.get("resume");
 
-    // Проверка FormData
-    const formData = await request.formData();
-    const resume = formData.get('resume');
-
-    if (!resume || !(resume instanceof File)) {
-      console.error('No valid file provided in FormData');
-      return NextResponse.json({ error: 'PDF-файл не предоставлен или неверный формат' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Проверка типа и размера файла
-    if (resume.type !== 'application/pdf') {
-      console.error('Invalid file type:', resume.type);
-      return NextResponse.json({ error: 'Файл должен быть в формате PDF' }, { status: 400 });
-    }
-    if (resume.size > 5 * 1024 * 1024) { // Ограничение 5 МБ
-      console.error('File size too large:', resume.size);
-      return NextResponse.json({ error: 'Файл слишком большой (максимум 5 МБ)' }, { status: 400 });
-    }
+   
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    console.log('Processing file:', resume.name, 'Size:', resume.size);
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    await fs.mkdir(uploadDir, { recursive: true });
+    const filePath = path.join(uploadDir, file.name);
+    await fs.writeFile(filePath, buffer);
 
-    // Извлечение текста из PDF с помощью pdf2json
-    let resumeText;
-    try {
-      const pdfBuffer = Buffer.from(await resume.arrayBuffer());
-      const pdfParser = new PDFParser();
+    const pdfParser = new PDFParser();
+    const pdfData = await new Promise((resolve, reject) => {
+      pdfParser.on("pdfParser_dataError", (errData) => reject(errData));
+      pdfParser.on("pdfParser_dataReady", (pdfData) => resolve(pdfData));
+      pdfParser.loadPDF(filePath);
+    });
 
-      resumeText = await new Promise((resolve, reject) => {
-        pdfParser.on('pdfParser_dataError', (errData) => {
-          console.error('PDF2JSON parsing error:', errData);
-          reject(new Error('Ошибка при разборе PDF'));
-        });
+    const rawText = (pdfData as any).Pages.map((page: any) =>
+      page.Texts.map((text: any) => decodeURIComponent(text.R[0].T)).join("")
+    ).join("");
 
-        pdfParser.on('pdfParser_dataReady', (pdfData) => {
-          const text = pdfData.Pages.reduce((acc, page) => {
-            const pageText = page.Texts.map((text) =>
-              text.R.map((run) => decodeURIComponent(run.T)).join('')
-            ).join(' ');
-            return acc + pageText + ' ';
-          }, '').trim();
-          resolve(text);
-        });
+    const normalizedText = rawText
+      .split(/\s+/)
+      .map((word: any) => word.replace(/\s+/g, ""))
+      .join(" ")
+      .toLowerCase()
+      .trim();
 
-        pdfParser.parseBuffer(pdfBuffer);
-      });
+    console.log("Normalized resume text:", normalizedText);
 
-    } catch (pdfError) {
-      console.error('PDF processing error:', pdfError);
-      return NextResponse.json({ error: 'Ошибка при обработке PDF-файла' }, { status: 400 });
-    }
+    const { skills, role, roleText } = extractResumeData(normalizedText);
 
-    if (!resumeText) {
-      console.error('Extracted text is empty');
-      return NextResponse.json({ error: 'Резюме не содержит текста' }, { status: 400 });
-    }
+    console.log("Extracted skills:", skills);
+    console.log("Extracted role:", role);
+    console.log("Extracted role text:", roleText);
 
-    // Промпты для Gemini API
-    const pastPrompt = `
-      На основе следующего текста резюме определите ключевые навыки и опыт кандидата.
-      Затем представьте, кем бы этот человек мог быть 10 лет назад (в 2015 году) с учетом технологий и рынка труда того времени.
-      Опишите альтернативную карьерную реальность в стиле "что могло бы быть", учитывая их текущие навыки.
-      Ответ должен быть кратким (2-3 предложения) и на русском языке.
-      Текст резюме: ${resumeText}
-    `;
+    await fs.unlink(filePath);
 
-    const futurePrompt = `
-      На основе следующего текста резюме определите ключевые навыки и опыт кандидата.
-      С учетом текущих трендов на рынке труда и эволюции технологий, опишите, кем этот человек может стать через 5 лет (в 2030 году).
-      Укажите возможные должности или роли, которые соответствуют их навыкам, в краткой форме (2-3 предложения) на русском языке.
-      Текст резюме: ${resumeText}
-    `;
-
-    // Функция для запроса к Gemini API с таймаутом
-    const fetchGeminiResponse = async (prompt: string) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Таймаут 10 секунд
-
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${
-            GOOGLE_API_KEY || 'AIzaSyCLIB1yGy-lyyXbyWr5mebsmC46GCHx6Dk'
-          }`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: prompt,
-                    },
-                  ],
-                },
-              ],
-            }),
-            signal: controller.signal,
-          }
-        );
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          console.error('Gemini API error:', response.status, response.statusText);
-          throw new Error(`Gemini failed: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('Raw Gemini response:', JSON.stringify(data, null, 2));
-
-        if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
-          console.error('Invalid Gemini response: candidates is empty or undefined');
-          throw new Error('No valid candidates in Gemini response');
-        }
-
-        const content = data.candidates[0].content.parts[0].text;
-        console.log('Gemini response content:', content);
-        return content;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        throw error;
-      }
-    };
-
-    // Получение ответов для прошлого и будущего
-    const [past, future] = await Promise.all([
-      fetchGeminiResponse(pastPrompt).catch((err) => {
-        console.error('Past prompt error:', err);
-        return 'Ошибка при анализе прошлого';
-      }),
-      fetchGeminiResponse(futurePrompt).catch((err) => {
-        console.error('Future prompt error:', err);
-        return 'Ошибка при анализе будущего';
-      }),
-    ]);
-
-    console.log('Returning results:', { past, future });
-    return NextResponse.json({ past, future });
-  } catch (error: any) {
-    console.error('Error processing resume:', error);
     return NextResponse.json(
       {
-        past: '',
-        future: '',
-        error: `Failed to process resume: ${error.message}`,
+        skills: skills.join(","),
+        role,
+        roleText,
+        experience: "", // Можно расширить логику для извлечения опыта
+        workFormat: "", // Можно расширить логику для извлечения формата работы
+        searchLogic: "OR", // Указываем OR для upload-resume
       },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("Error processing PDF:", error);
+    return NextResponse.json(
+      { error: "Failed to process PDF" },
       { status: 500 }
     );
   }
+}
+
+function extractResumeData(text: string) {
+  const skillKeywords = [
+    "javascript",
+    "python",
+    "react",
+    "node.js",
+    "sql",
+    "c++",
+    "c#",
+    "kotlin",
+    "java",
+    "typescript",
+    "css",
+    "html",
+    "docker",
+    "aws",
+    "git",
+    "frontend",
+    "backend",
+    "fullstack",
+    "фронтенд",
+    "бэкенд",
+    "фуллстек",
+    "программирование",
+    "разработка",
+    "hono",
+    "express",
+    "typeorm",
+    "prisma",
+    "strapi",
+    "vue",
+    "testing",
+    "qa",
+    "тестирование",
+    "администрирование",
+    "управление",
+    "дизайн",
+    "аналитика",
+  ];
+
+  const roleKeywords = [
+    "developer",
+    "engineer",
+    "manager",
+    "designer",
+    "analyst",
+    "architect",
+    "programmer",
+    "software",
+    "qa",
+    "tester",
+    "administrator",
+    "driver",
+    "teacher",
+    "doctor",
+    "nurse",
+    "программист",
+    "разработчик",
+    "инженер",
+    "менеджер",
+    "дизайнер",
+    "аналитик",
+    "архитектор",
+    "fullstack",
+    "тестировщик",
+    "администратор",
+    "водитель",
+    "учитель",
+    "врач",
+    "медсестра",
+  ];
+
+  const roleMapping = {
+    developer: "96",
+    engineer: "25",
+    manager: "70",
+    designer: "34",
+    analyst: "10",
+    architect: "104",
+    programmer: "96",
+    software: "96",
+    qa: "148",
+    tester: "148",
+    administrator: "3",
+    driver: "24",
+    teacher: "119",
+    doctor: "29",
+    nurse: "63",
+    программист: "96",
+    разработчик: "96",
+    инженер: "25",
+    менеджер: "70",
+    дизайнер: "34",
+    аналитик: "10",
+    архитектор: "104",
+    fullstack: "96",
+    тестировщик: "148",
+    администратор: "3",
+    водитель: "24",
+    учитель: "119",
+    врач: "29",
+    медсестра: "63",
+  };
+
+  const skills = skillKeywords.filter((keyword) => text.includes(keyword));
+  const roleText =
+    (roleKeywords.find((keyword) => text.includes(keyword)) as keyof typeof roleMapping) || "unknown";
+  const role = roleMapping[roleText] || "unknown";
+
+  return { skills, role, roleText };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -26,15 +26,11 @@ import {
   Clipboard,
   Download,
   BarChart2,
+  Info,
+  Send,
+  StopCircle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { GOOGLE_API_KEY } from "@/constants/constants";
 
 interface Job {
@@ -51,6 +47,19 @@ interface Job {
   experience: string;
   remote: boolean;
   url: string;
+}
+
+interface SourceInfo {
+  description: string;
+  links: { title: string; url: string }[];
+}
+
+interface AutoApplyResult {
+  jobId: string;
+  title: string;
+  company: string;
+  status: "pending" | "success";
+  message?: string;
 }
 
 interface JobListingsGridProps {
@@ -78,10 +87,10 @@ export default function JobListingsGrid({
   const [showModal, setShowModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [savedJobs, setSavedJobs] = useState<string[]>([]);
+  const [sentApplications, setSentApplications] = useState<AutoApplyResult[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [perPage, setPerPage] = useState(20);
   const [hasMore, setHasMore] = useState(true);
   const [coverLetter, setCoverLetter] = useState<string | null>(null);
   const [coverLetterLoading, setCoverLetterLoading] = useState(false);
@@ -92,16 +101,37 @@ export default function JobListingsGrid({
   } | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [isAutoApplying, setIsAutoApplying] = useState(false);
+  const [autoApplyProgress, setAutoApplyProgress] = useState(0);
+  const [autoApplyResults, setAutoApplyResults] = useState<AutoApplyResult[]>([]);
+  const isStopped = useRef(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("savedJobs");
-    if (saved) {
-      setSavedJobs(JSON.parse(saved));
-    }
-    const cached = localStorage.getItem("cachedJobs");
-    if (cached) {
-      setCachedJobs(JSON.parse(cached));
-      setJobs(JSON.parse(cached));
+    try {
+      const saved = localStorage.getItem("savedJobs");
+      if (saved) {
+        setSavedJobs(JSON.parse(saved));
+      }
+      const cached = localStorage.getItem("cachedJobs");
+      if (cached) {
+        setCachedJobs(JSON.parse(cached));
+        setJobs(JSON.parse(cached));
+      }
+      const sent = localStorage.getItem("sentApplications");
+      if (sent) {
+        const parsed = JSON.parse(sent);
+        if (Array.isArray(parsed)) {
+          setSentApplications(parsed);
+        } else {
+          console.warn("Invalid sentApplications in localStorage, resetting.");
+          localStorage.setItem("sentApplications", JSON.stringify([]));
+          setSentApplications([]);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading from localStorage:", err);
+      localStorage.setItem("sentApplications", JSON.stringify([]));
+      setSentApplications([]);
     }
   }, []);
 
@@ -114,6 +144,14 @@ export default function JobListingsGrid({
   }, [cachedJobs]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem("sentApplications", JSON.stringify(sentApplications));
+    } catch (err) {
+      console.error("Error saving sentApplications to localStorage:", err);
+    }
+  }, [sentApplications]);
+
+  useEffect(() => {
     setCurrentPage(0);
     setJobs([]);
     setCachedJobs([]);
@@ -121,14 +159,14 @@ export default function JobListingsGrid({
     setHasMore(true);
   }, [skills, role, roleText, experience, searchLogic]);
 
-  const fetchJobs = async (page: number) => {
+  const fetchJobs = async (page: number): Promise<Job[]> => {
     setLoading(true);
     setError(null);
 
     try {
       const query = new URLSearchParams({
         page: page.toString(),
-        per_page: perPage.toString(),
+        per_page: "100",
         ...(skills && { skills: skills }),
         ...(role && { role: role }),
         ...(roleText && { roleText: roleText }),
@@ -166,26 +204,31 @@ export default function JobListingsGrid({
           page === 0 ? transformedJobs : [...prev, ...transformedJobs]
         );
         setTotalPages(data.pages || 1);
-        setHasMore(data.items.length === parseInt(perPage.toString()));
+        setHasMore(data.items.length === 100);
+        return transformedJobs;
       } else {
         setHasMore(false);
         if (page === 0) {
           setJobs([]);
           setError("No job listings found. Try adjusting your filters.");
         }
+        return [];
       }
     } catch (err: any) {
       console.error("Error fetching jobs:", err);
       setError(err.message || "Failed to load job listings");
       setHasMore(false);
+      return [];
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchJobs(currentPage);
-  }, [currentPage, perPage, skills, role, roleText, experience, searchLogic]);
+    if (!isAutoApplying) {
+      fetchJobs(currentPage);
+    }
+  }, [currentPage, skills, role, roleText, experience, searchLogic]);
 
   const fetchMore = () => {
     if (!loading && hasMore) {
@@ -489,7 +532,6 @@ export default function JobListingsGrid({
 
       const rawText = data.candidates[0].content.parts[0].text.trim();
 
-      // Strip Markdown code block syntax (e.g., ```json ... ```)
       const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/);
       if (!jsonMatch || !jsonMatch[1]) {
         throw new Error("Failed to extract JSON from Gemini response");
@@ -498,7 +540,6 @@ export default function JobListingsGrid({
       const jsonString = jsonMatch[1].trim();
       const content = JSON.parse(jsonString);
 
-      // Validate the parsed content structure
       if (!content.advantages || !content.disadvantages) {
         throw new Error(
           "Invalid JSON structure: missing advantages or disadvantages"
@@ -513,6 +554,115 @@ export default function JobListingsGrid({
       );
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  const simulateJobApplication = async (job: Job): Promise<AutoApplyResult> => {
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 1000 + 500));
+    return {
+      jobId: job.id,
+      title: job.title,
+      company: job.company,
+      status: "success",
+      message: `Успешно подали заявку на ${job.title} в ${job.company}`,
+    };
+  };
+
+  const handleAutoApply = async () => {
+    if (jobs.length === 0 && !hasMore) {
+      alert("Нет вакансий для автоматического отклика.");
+      return;
+    }
+
+    setIsAutoApplying(true);
+    isStopped.current = false;
+    setAutoApplyProgress(0);
+    setAutoApplyResults([]);
+
+    let page = 0;
+    let allJobs: Job[] = [...jobs];
+    let totalProcessed = 0;
+
+    console.log("Starting auto-apply with", allJobs.length, "initial jobs");
+
+    while (hasMore && !isStopped.current) {
+      if (page > 0) {
+        const newJobs = await fetchJobs(page);
+        allJobs = [...allJobs, ...newJobs];
+        console.log("Fetched page", page, "with", newJobs.length, "jobs");
+      }
+
+      const currentPageJobs = allJobs.slice(totalProcessed);
+      if (currentPageJobs.length === 0) {
+        console.log("No more jobs to process, exiting loop");
+        break;
+      }
+
+      setAutoApplyResults((prev) => [
+        ...prev,
+        ...currentPageJobs.map((job) => ({
+          jobId: job.id,
+          title: job.title,
+          company: job.company,
+          status: "pending",
+        })),
+      ]);
+
+      for (const job of currentPageJobs) {
+        if (isStopped.current) {
+          console.log("Auto-apply stopped");
+          break;
+        }
+
+        console.log("Processing job:", job.title, job.id);
+        const result = await simulateJobApplication(job);
+        setAutoApplyResults((prev) =>
+          prev.map((item) =>
+            item.jobId === job.id ? result : item
+          )
+        );
+        setSentApplications((prev) => {
+          const newApplications = [...prev, result];
+          try {
+            localStorage.setItem("sentApplications", JSON.stringify(newApplications));
+            console.log("Added application for", job.title, "Total applications:", newApplications.length);
+          } catch (err) {
+            console.error("Error saving to localStorage:", err);
+          }
+          return newApplications;
+        });
+        totalProcessed++;
+        setAutoApplyProgress(Math.min((totalProcessed / (allJobs.length || 1)) * 100, 100));
+      }
+
+      if (!isStopped.current && hasMore) {
+        page++;
+      }
+    }
+
+    if (isStopped.current) {
+      console.log("Auto-apply cancelled, resetting results");
+      setAutoApplyResults([]);
+      setAutoApplyProgress(0);
+    }
+    setIsAutoApplying(false);
+    isStopped.current = false;
+    console.log("Auto-apply finished, total applications:", sentApplications.length);
+  };
+
+  const handleStopAutoApply = () => {
+    isStopped.current = true;
+    setIsAutoApplying(false);
+    setAutoApplyProgress(0);
+    setAutoApplyResults([]);
+    console.log("Stop button clicked, stopping auto-apply");
+  };
+
+  const handleResetSentApplications = () => {
+    if (confirm("Вы уверены, что хотите сбросить все отправленные отклики? Это действие нельзя отменить.")) {
+      setSentApplications([]);
+      localStorage.setItem("sentApplications", JSON.stringify([]));
+      console.log("Sent applications reset");
     }
   };
 
@@ -570,13 +720,118 @@ export default function JobListingsGrid({
     }
   };
 
+  const hasHeadhunterSecret = !!process.env.NEXT_PUBLIC_HEADHUNTER_SECRET;
+
   return (
     <div className="w-full max-w-none !mx-0 !px-0 !my-0 mb-12">
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+        @keyframes glow {
+          0%, 100% {
+            text-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+          }
+          50% {
+            text-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
+          }
+        }
+        @keyframes buttonPulse {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.05);
+          }
+        }
+        .shimmer-animation {
+          background: linear-gradient(
+            90deg,
+            #3b82f6 25%,
+            #60a5fa 50%,
+            #3b82f6 75%
+          );
+          background-size: 200% 100%;
+          animation: shimmer 2s linear infinite;
+        }
+        .glow-animation {
+          animation: glow 1.5s ease-in-out infinite;
+        }
+        .spinner-color {
+          animation: colorSpin 2s linear infinite;
+        }
+        @keyframes colorSpin {
+          0% {
+            color: #3b82f6;
+          }
+          50% {
+            color: #1d4ed8;
+          }
+          100% {
+            color: #3b82f6;
+          }
+        }
+        .status-transition {
+          transition: all 0.4s ease-in-out;
+          transform: translateY(10px) scale(0.95);
+          opacity: 0;
+        }
+        .status-transition.show {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
+        .button-pulse {
+          animation: buttonPulse 2s ease-in-out infinite;
+        }
+      `}</style>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm">
             Filters
           </Button>
+          {!isAutoApplying ? (
+            <Button
+            variant="default"
+            size="sm"
+            onClick={handleAutoApply}
+            disabled={jobs.length === 0 || !hasMore || !hasHeadhunterSecret}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={
+              !hasHeadhunterSecret
+                ? "Авто-отклик недоступен: отсутствует конфигурация HeadHunter"
+                : undefined
+            }
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Авто-отклик на все
+          </Button>
+          ) : (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleStopAutoApply}
+              className="bg-red-600 hover:bg-red-700 hover:scale-105 active:scale-95 transition-transform button-pulse"
+            >
+              <StopCircle className="h-4 w-4 mr-2" />
+              Остановить
+            </Button>
+          )}
+          {activeTab === "sent" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetSentApplications}
+              className="border-red-500 text-red-500 hover:bg-red-100"
+            >
+              Сбросить отклики
+            </Button>
+          )}
         </div>
         {skills && (
           <div className="flex flex-wrap gap-2">
@@ -590,6 +845,66 @@ export default function JobListingsGrid({
         )}
       </div>
 
+      {isAutoApplying && (
+        <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2 flex items-center">
+            <Loader2 className="h-5 w-5 mr-2 spinner-color" />
+            Процесс авто-отклика
+          </h3>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-4 overflow-hidden">
+            <div
+              className="h-2.5 rounded-full shimmer-animation"
+              style={{ width: `${autoApplyProgress}%` }}
+            ></div>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+            Отправлено{" "}
+            <span className="font-semibold text-blue-500 glow-animation transition-all duration-200">
+              {autoApplyResults.filter((r) => r.status === "success").length}
+            </span>{" "}
+            откликов
+          </p>
+        </div>
+      )}
+
+      {autoApplyResults.length > 0 && !isAutoApplying && (
+        <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2">Результаты авто-отклика</h3>
+          <ul className="space-y-2 max-h-64 overflow-y-auto">
+            {autoApplyResults.map((result, index) => (
+              <li
+                key={index}
+                className={`text-sm p-2 rounded flex items-center bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 status-transition ${
+                  result.status === "success" ? "show" : ""
+                }`}
+              >
+                {result.status === "pending" && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-blue-500" />
+                )}
+                {result.status === "success" && (
+                  <svg
+                    className="h-4 w-4 mr-2 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+                <span>
+                  {result.title} в {result.company}: {result.message || "В процессе..."}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mb-6">
         <Tabs
           defaultValue="all"
@@ -602,9 +917,12 @@ export default function JobListingsGrid({
             <TabsTrigger value="saved">
               Saved Jobs ({savedJobs.length})
             </TabsTrigger>
+            <TabsTrigger value="sent">
+              Sent Applications ({sentApplications.length})
+            </TabsTrigger>
           </TabsList>
 
-          {error && jobs.length === 0 ? (
+          {error && jobs.length === 0 && activeTab !== "sent" ? (
             <div className="text-center py-12">
               <p className="text-red-500 mb-4">{error}</p>
               <Button onClick={() => fetchJobs(0)}>Retry</Button>
@@ -684,7 +1002,53 @@ export default function JobListingsGrid({
                 )}
               </TabsContent>
 
-              {hasMore && (
+              <TabsContent value="sent" className="mt-0">
+                <div className="p-4 bg-gray-100 dark:bg-gray-900 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4">Отправленные отклики</h3>
+                  {sentApplications.length > 0 ? (
+                    <ul className="space-y-2 max-h-96 overflow-y-auto">
+                      {sentApplications.map((application, index) => (
+                        <li
+                          key={index}
+                          className="text-sm p-2 rounded flex items-center bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                        >
+                          <svg
+                            className="h-4 w-4 mr-2 text-green-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          <span>
+                            {application.title} в {application.company}: {application.message}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Send className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium mb-2">
+                        Нет отправленных откликов
+                      </h3>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        Используйте авто-отклик или подайте заявку вручную, чтобы увидеть их здесь
+                      </p>
+                      <Button onClick={() => setActiveTab("all")}>
+                        Найти вакансии
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {hasMore && activeTab !== "sent" && (
                 <div className="flex justify-center mt-6">
                   <Button onClick={fetchMore} disabled={loading}>
                     {loading ? (
@@ -704,67 +1068,13 @@ export default function JobListingsGrid({
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-center mt-8 gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">Items per page:</span>
-          <Select
-            value={perPage.toString()}
-            onValueChange={(value) => setPerPage(Number.parseInt(value))}
-          >
-            <SelectTrigger className="w-[80px]">
-              <SelectValue placeholder={perPage.toString()} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="20">20</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentPage(0)}
-            disabled={currentPage === 0}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <ChevronLeft className="h-4 w-4 -ml-2" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-            disabled={currentPage === 0}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
+        {activeTab !== "sent" && (
           <div className="flex items-center mx-2">
             <span className="text-sm font-medium">
               Page {currentPage + 1} of {totalPages}
             </span>
           </div>
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-            disabled={currentPage === totalPages - 1 || !hasMore}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentPage(totalPages - 1)}
-            disabled={currentPage === totalPages - 1 || !hasMore}
-          >
-            <ChevronRight className="h-4 w-4" />
-            <ChevronRight className="h-4 w-4 -ml-2" />
-          </Button>
-        </div>
+        )}
       </div>
 
       {showModal && selectedJob && (
@@ -897,6 +1207,109 @@ function JobCard({
   onApply,
   onAnalyze,
 }: JobCardProps) {
+  const [sourceInfo, setSourceInfo] = useState<SourceInfo | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [showSource, setShowSource] = useState(false);
+
+  const fetchSourceInfo = async () => {
+    setSourceLoading(true);
+    setSourceError(null);
+    setSourceInfo(null);
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `You are a job search assistant tasked with providing additional information and useful links for a job vacancy. Based on the provided job details, search for relevant information about the company, industry, or role, and provide a concise description along with 2-4 useful links (e.g., company website, LinkedIn page, industry articles, or career resources). Return the response in JSON format with a "description" field (in Russian, 50-100 words) and a "links" array containing objects with "title" and "url" fields. Ensure the links are valid and relevant. Avoid any phrases suggesting AI generation.
+
+                    **Job Details**:
+                    - Title: ${job.title}
+                    - Company: ${job.company}
+                    - Location: ${job.location}
+                    - Description: ${job.description}
+                    - Tags: ${job.tags.join(", ")}
+
+                    **Instructions**:
+                    - The description should summarize the company background, industry context, or role relevance in Russian.
+                    - Links should include the company website (if available), a professional network page (e.g., LinkedIn), or relevant articles/resources.
+                    - Return only the JSON object, without markdown or additional explanations.
+                    - If specific details are unavailable, make reasonable assumptions but prioritize accuracy.
+
+                    Example:
+                    {
+                      "description": "Компания TechCorp — лидер в разработке программного обеспечения, специализирующийся на облачных решениях. Основана в 2010 году, она активно расширяет штат разработчиков для работы над инновационными проектами.",
+                      "links": [
+                        { "title": "Сайт TechCorp", "url": "https://techcorp.com" },
+                        { "title": "LinkedIn TechCorp", "url": "https://linkedin.com/company/techcorp" },
+                        { "title": "Статья о разработке ПО", "url": "https://example.com/article" }
+                      ]
+                    }
+
+                    **Now, generate the source information for the job details provided above in Russian.**`,
+                  },
+                ],
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (
+        !data.candidates ||
+        !Array.isArray(data.candidates) ||
+        data.candidates.length === 0
+      ) {
+        throw new Error("No valid candidates in Gemini response");
+      }
+
+      const rawText = data.candidates[0].content.parts[0].text.trim();
+      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/);
+      if (!jsonMatch || !jsonMatch[1]) {
+        throw new Error("Failed to extract JSON from Gemini response");
+      }
+
+      const jsonString = jsonMatch[1].trim();
+      const content = JSON.parse(jsonString);
+
+      if (!content.description || !content.links) {
+        throw new Error(
+          "Invalid JSON structure: missing description or links"
+        );
+      }
+
+      setSourceInfo(content);
+    } catch (err: any) {
+      console.error("Error fetching source info:", err);
+      setSourceError(
+        "Не удалось загрузить дополнительную информацию. Попробуйте снова."
+      );
+    } finally {
+      setSourceLoading(false);
+    }
+  };
+
+  const toggleSourceInfo = () => {
+    if (!showSource && !sourceInfo && !sourceError) {
+      fetchSourceInfo();
+    }
+    setShowSource(!showSource);
+  };
+
   return (
     <Card className="job-card border-2 hover:border-primary/30 transition-all duration-300">
       <CardHeader className="pb-2">
@@ -954,6 +1367,59 @@ function JobCard({
           Posted {job.posted}
         </p>
       </CardContent>
+      <CardContent className="pt-0">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full flex items-center justify-center"
+          onClick={toggleSourceInfo}
+        >
+          <Info className="h-4 w-4 mr-1" />
+          {showSource ? "Скрыть информацию" : "Дополнительная информация"}
+        </Button>
+        {showSource && (
+          <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg">
+            {sourceLoading ? (
+              <div className="text-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                <p className="mt-2 text-sm">Загружаем информацию...</p>
+              </div>
+            ) : sourceError ? (
+              <div className="text-center py-4">
+                <p className="text-red-500 text-sm mb-4">{sourceError}</p>
+                <Button variant="outline" size="sm" onClick={fetchSourceInfo}>
+                  Повторить
+                </Button>
+              </div>
+            ) : sourceInfo ? (
+              <div>
+                <p className="text-sm text-gray-800 dark:text-gray-200 mb-3">
+                  {sourceInfo.description}
+                </p>
+                <h4 className="text-sm font-semibold mb-2">Полезные ссылки:</h4>
+                <ul className="list-disc pl-5">
+                  {sourceInfo.links.map((link, index) => (
+                    <li key={index} className="text-sm">
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {link.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Загружаем дополнительную информацию...
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
       <CardFooter className="flex flex-col gap-2 pt-2 job-card-footer">
         <div className="flex justify-between w-full gap-2">
           <Button
@@ -1001,4 +1467,4 @@ function JobCard({
       </CardFooter>
     </Card>
   );
-}
+} 

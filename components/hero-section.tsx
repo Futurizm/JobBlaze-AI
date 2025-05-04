@@ -5,6 +5,7 @@ import { FileUp, Zap } from "lucide-react";
 import { useXP } from "./xp-provider";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
+import { processAutoResponse } from "@/lib/headhunterAPI";
 
 interface HeroSectionProps {
   onResumeParsed: (data: {
@@ -25,6 +26,8 @@ export default function HeroSection({ onResumeParsed }: HeroSectionProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
+  const [autoResponse, setAutoResponse] = useState(false)
+  const [isResumeSubmitted, setIsResumeSubmitted] = useState(false)
 
   // Функция для анализа текста через Gemini
   async function analyzeTextWithGemini(text: string) {
@@ -240,7 +243,7 @@ export default function HeroSection({ onResumeParsed }: HeroSectionProps) {
           workFormat: result.workFormat || "",
           searchLogic: "OR", // Upload Resume использует OR
         });
-        addXP(10);
+        setIsResumeSubmitted(true); // Set state on successful submission
       } else {
         const errorText = await response.text();
         setError(errorText || "Failed to parse resume");
@@ -278,6 +281,23 @@ export default function HeroSection({ onResumeParsed }: HeroSectionProps) {
       }
     }
   };
+
+  const handleAutoResponse = async (clientId?: string, resumeId?: string, vacancyId?: string) => {
+    try {
+  
+  
+      const result = await processAutoResponse(clientId, resumeId, vacancyId);
+      
+      if (result.success) {
+        console.log("Отклик успешен");
+        setAutoResponse(true)
+      } else {
+        setError("Ошибка отклика");
+      }
+    } catch (err) {
+      setError("Ошибка запроса");
+    }
+  }
 
   return (
     <div className="hero-section">
@@ -336,6 +356,7 @@ export default function HeroSection({ onResumeParsed }: HeroSectionProps) {
               </Button>
             )}
           </form>
+          
 
           <Button
             size="lg"
@@ -378,6 +399,17 @@ export default function HeroSection({ onResumeParsed }: HeroSectionProps) {
           >
             {error}
           </motion.p>
+        )}
+
+        {autoResponse && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="mt-6 flex justify-center"
+          >
+            <div className="loader animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          </motion.div>
         )}
       </div>
     </div>
